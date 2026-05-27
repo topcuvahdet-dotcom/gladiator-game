@@ -33,10 +33,260 @@
     <!-- Phaser 3 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
     
-    <!-- Game Scripts (ORDER MATTERS!) -->
-    <script src="src/characters/player.js"></script>
-    <script src="src/characters/enemy.js"></script>
-    <script src="src/scenes/gameScene.js"></script>
-    <script src="src/main.js"></script>
+    <!-- Game Scripts (CHARACTER CLASSES FIRST!) -->
+    <script>
+    class Player {
+        constructor(scene, x, y) {
+            this.scene = scene;
+            this.health = 100;
+            this.isAttacking = false;
+            this.targetX = x;
+            this.speed = 300;
+
+            this.sprite = scene.add.rectangle(x, y, 40, 60, 0x0066ff);
+            scene.physics.add.existing(this.sprite);
+            this.sprite.body.setBounce(0.2);
+            this.sprite.body.setCollideWorldBounds(true);
+
+            this.attackArea = scene.add.zone(x + 50, y, 40, 60);
+            scene.physics.world.enable(this.attackArea);
+
+            // Mouse click events
+            scene.input.on('pointerdown', (pointer) => {
+                this.targetX = pointer.x;
+                // Saldır (sağ tıklama)
+                if (pointer.rightButtonDown()) {
+                    this.attack();
+                }
+            });
+
+            scene.input.on('pointermove', (pointer) => {
+                if (pointer.isDown && !pointer.rightButtonDown()) {
+                    this.targetX = pointer.x;
+                }
+            });
+        }
+
+        update() {
+            // Hedefi takip et
+            if (Math.abs(this.sprite.x - this.targetX) > 10) {
+                if (this.targetX > this.sprite.x) {
+                    this.sprite.body.setVelocityX(this.speed);
+                } else {
+                    this.sprite.body.setVelocityX(-this.speed);
+                }
+            } else {
+                this.sprite.body.setVelocityX(0);
+            }
+
+            this.attackArea.x = this.sprite.x + 50;
+            this.attackArea.y = this.sprite.y;
+        }
+
+        attack() {
+            if (this.isAttacking) return;
+            this.isAttacking = true;
+            this.sprite.setFillStyle(0xff6600);
+            setTimeout(() => {
+                this.sprite.setFillStyle(0x0066ff);
+            }, 100);
+            setTimeout(() => {
+                this.isAttacking = false;
+            }, 200);
+        }
+
+        takeDamage(amount) {
+            this.health -= amount;
+            if (this.health < 0) this.health = 0;
+            this.sprite.setFillStyle(0xff0000);
+            setTimeout(() => {
+                this.sprite.setFillStyle(0x0066ff);
+            }, 100);
+        }
+    }
+
+    class Enemy {
+        constructor(scene, x, y) {
+            this.scene = scene;
+            this.health = 100;
+            this.isAttacking = false;
+            this.attackCooldown = 0;
+
+            this.sprite = scene.add.rectangle(x, y, 40, 60, 0xff3300);
+            scene.physics.add.existing(this.sprite);
+            this.sprite.body.setBounce(0.2);
+            this.sprite.body.setCollideWorldBounds(true);
+
+            this.attackArea = scene.add.zone(x - 50, y, 40, 60);
+            scene.physics.world.enable(this.attackArea);
+        }
+
+        update(playerSprite) {
+            const distanceToPlayer = Phaser.Math.Distance.Between(
+                this.sprite.x, this.sprite.y,
+                playerSprite.x, playerSprite.y
+            );
+
+            if (distanceToPlayer < 300) {
+                if (playerSprite.x > this.sprite.x) {
+                    this.sprite.body.setVelocityX(150);
+                } else {
+                    this.sprite.body.setVelocityX(-150);
+                }
+
+                if (distanceToPlayer < 150 && this.sprite.body.touching.down) {
+                    this.sprite.body.setVelocityY(-200);
+                }
+
+                if (distanceToPlayer < 100 && this.attackCooldown <= 0) {
+                    this.attack();
+                    this.attackCooldown = 60;
+                }
+            } else {
+                this.sprite.body.setVelocityX(0);
+            }
+
+            if (this.attackCooldown > 0) {
+                this.attackCooldown--;
+            }
+
+            this.attackArea.x = this.sprite.x - 50;
+            this.attackArea.y = this.sprite.y;
+        }
+
+        attack() {
+            this.isAttacking = true;
+            this.sprite.setFillStyle(0xffaa00);
+            setTimeout(() => {
+                this.sprite.setFillStyle(0xff3300);
+            }, 100);
+            setTimeout(() => {
+                this.isAttacking = false;
+            }, 200);
+        }
+
+        takeDamage(amount) {
+            this.health -= amount;
+            if (this.health < 0) this.health = 0;
+            this.sprite.setFillStyle(0xffffff);
+            setTimeout(() => {
+                this.sprite.setFillStyle(0xff3300);
+            }, 100);
+        }
+    }
+
+    class GameScene extends Phaser.Scene {
+        constructor() {
+            super({ key: 'GameScene' });
+        }
+
+        create() {
+            this.add.rectangle(400, 300, 800, 600, 0x2a2a2a);
+            this.ground = this.add.rectangle(400, 550, 800, 100, 0x8b7355);
+            this.physics.add.existing(this.ground, true);
+
+            this.add.text(400, 30, 'GLADIATOR ARENA', {
+                fontSize: '32px',
+                fill: '#ff6b00',
+                align: 'center'
+            }).setOrigin(0.5);
+
+            this.add.text(400, 550, 'SOL TIKLAMA = HAREKET | SAĞ TIKLAMA = SALDIRI', {
+                fontSize: '14px',
+                fill: '#ffff00',
+                align: 'center'
+            }).setOrigin(0.5);
+
+            this.player = new Player(this, 150, 450);
+            this.enemy = new Enemy(this, 650, 450);
+
+            this.physics.add.collider(this.player.sprite, this.ground);
+            this.physics.add.collider(this.enemy.sprite, this.ground);
+
+            this.playerHealthText = this.add.text(20, 20, 'Oyuncu: 100 HP', {
+                fontSize: '16px',
+                fill: '#00ff00'
+            });
+
+            this.enemyHealthText = this.add.text(700, 20, 'Düşman: 100 HP', {
+                fontSize: '16px',
+                fill: '#ff0000',
+                align: 'right'
+            });
+
+            this.time.addEvent({
+                delay: 100,
+                callback: () => {
+                    this.updateHealthUI();
+                },
+                loop: true
+            });
+        }
+
+        update() {
+            this.player.update();
+            this.enemy.update(this.player.sprite);
+
+            if (this.physics.overlap(this.player.attackArea, this.enemy.sprite)) {
+                if (this.player.isAttacking) {
+                    this.enemy.takeDamage(10);
+                    this.player.isAttacking = false;
+                }
+            }
+
+            if (this.physics.overlap(this.enemy.attackArea, this.player.sprite)) {
+                if (this.enemy.isAttacking) {
+                    this.player.takeDamage(10);
+                    this.enemy.isAttacking = false;
+                }
+            }
+
+            if (this.player.health <= 0) {
+                this.add.text(400, 300, 'KAYBETTINIZ!', {
+                    fontSize: '48px',
+                    fill: '#ff0000',
+                    align: 'center'
+                }).setOrigin(0.5);
+                this.physics.pause();
+            }
+
+            if (this.enemy.health <= 0) {
+                this.add.text(400, 300, 'KAZANDINIZ!', {
+                    fontSize: '48px',
+                    fill: '#00ff00',
+                    align: 'center'
+                }).setOrigin(0.5);
+                this.physics.pause();
+            }
+        }
+
+        updateHealthUI() {
+            this.playerHealthText.setText(`Oyuncu: ${this.player.health} HP`);
+            this.enemyHealthText.setText(`Düşman: ${this.enemy.health} HP`);
+        }
+    }
+
+    const config = {
+        type: Phaser.AUTO,
+        parent: 'game-container',
+        width: 800,
+        height: 600,
+        scale: {
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+            expandParent: true
+        },
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: { y: 300 },
+                debug: false
+            }
+        },
+        scene: [GameScene]
+    };
+
+    const game = new Phaser.Game(config);
+    </script>
 </body>
 </html>
