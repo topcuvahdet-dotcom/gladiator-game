@@ -1,0 +1,16 @@
+{
+  "name": "gladiator-game",
+  "version": "1.0.0",
+  "description": "2D Gladiator Game built with Phaser 3",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server -p 8000",
+    "dev": "http-server -p 8000 -c-1"
+  },
+  "keywords": ["phaser3", "gladiator", "2d", "game"],
+  "author": "topcuvahdet-dotcom",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
